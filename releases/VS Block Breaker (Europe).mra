@@ -1,5 +1,6 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
+	<mameversion>0289</mameversion>
 	<setname>vblokbrk</setname>
 	<description>VS Block Breaker (Europe)</description>
 	<rotation>horizontal</rotation>

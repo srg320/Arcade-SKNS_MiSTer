@@ -1,5 +1,6 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
+	<mameversion>0289</mameversion>
 	<setname>galpanidx</setname>
 	<description>Gals Panic DX (Asia)</description>
 	<rotation>horizontal</rotation>
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="galpani4.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="galpanidx.zip|galpani4.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="1df61f01" name="gp4-100-00.u24" map="12345678" />
 		</interleave>

@@ -1,9 +1,10 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
-	<setname>galpaniex</setname>
-	<description>Gals Panic EX (Korea)</description>
+	<mameversion>0289</mameversion>
+	<setname>galpani4a</setname>
+	<description>Gals Panic 4 (Asia)</description>
 	<rotation>horizontal</rotation>
-	<year>2000</year>
+	<year>1996</year>
 	<manufacturer>Kaneko</manufacturer>
 	<buttons names="Button 1,Button 2,Start,Coin,Service" />
 
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="galpani4.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="galpani4a.zip|galpani4.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="1df61f01" name="gp4-100-00.u24" map="12345678" />
 		</interleave>
@@ -36,7 +37,7 @@
 			<part crc="8374663a" name="gp4-300-00.u4" map="12345678" />
 		</interleave>
 		<interleave output="64">
-			<part crc="886ef77f" name="gp4-301-01.u7" map="12345678" />
+			<part crc="53e9f8fb" name="gp4-301-00.u7" map="12345678" />
 		</interleave>
 		<part repeat="0xC00000">00</part>
 
@@ -45,9 +46,10 @@
 		</interleave>
 		<part repeat="0x180000">00</part>
 		<interleave output="64">
-			<part crc="d3b504e6" name="gpex_even_u10_d804_2001-2-6.u10" map="13570" />
-			<part crc="f3fe305a" name="gpex_odd_u8_14c6_2001-2-6.u8" map="1357" />
+			<part crc="b14adfbb" name="gp4a1_u10.u10" map="13570" />
+			<part crc="77fe1f40" name="gp4a1_u8.u8" map="1357" />
 		</interleave>
+		<part repeat="0x100000">00</part>
 	</rom>
 	<rom index="2" md5="" >
 		<part>10 41 FB FF FF FF</part>

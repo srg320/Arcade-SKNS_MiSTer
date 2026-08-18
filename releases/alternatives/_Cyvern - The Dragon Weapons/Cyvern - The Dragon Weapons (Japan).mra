@@ -1,5 +1,6 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
+	<mameversion>0289</mameversion>
 	<setname>cyvernj</setname>
 	<description>Cyvern - The Dragon Weapons (Japan)</description>
 	<rotation>vertical</rotation>
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="cyvern.zip|cyvernj.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="cyvernj.zip|cyvern.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="cd4ae88a" name="cv100-00.u24" map="12345678" />
 		</interleave>

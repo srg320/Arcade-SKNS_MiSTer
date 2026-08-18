@@ -1,7 +1,8 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
-	<setname>puzzloopa</setname>
-	<description>Puzz Loop (Asia)</description>
+	<mameversion>0289</mameversion>
+	<setname>puzzloopu</setname>
+	<description>Puzz Loop (USA)</description>
 	<rotation>horizontal</rotation>
 	<year>1998</year>
 	<manufacturer>Mitchell</manufacturer>
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="puzzloop.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="puzzloopu.zip|puzzloop.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="35bf6897" name="pzl10000.u24" map="12345678" />
 		</interleave>
@@ -36,17 +37,17 @@
 		<part repeat="0xC00000">00</part>
 
 		<interleave output="64">
-			<part crc="745e5212" name="sknsa1.u10" map="12345678" />
+			<part crc="384d21ec" name="sknsu1.u10" map="12345678" />
 		</interleave>
 		<part repeat="0x180000">00</part>
 		<interleave output="64">
-			<part crc="4e8673b8" name="pl0a3.u6" map="13570" />
-			<part crc="e08a1a07" name="pl0a3.u4" map="1357" />
+			<part crc="e6f3f82f" name="plue5.u6" map="13570" />
+			<part crc="0d081d30" name="plue5.u4" map="1357" />
 		</interleave>
 		<part repeat="0x100000">00</part>
 	</rom>
 	<rom index="2" md5="" >
-		<part>50 41 FF FF FB FF</part>
+		<part>50 55 FF FF FB FF</part>
 	</rom>
 	<nvram index="4" size="0x2000" />
 </misterromdescription>
