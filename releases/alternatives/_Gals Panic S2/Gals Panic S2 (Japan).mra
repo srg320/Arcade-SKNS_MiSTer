@@ -1,5 +1,6 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
+	<mameversion>0289</mameversion>
 	<setname>galpans2j</setname>
 	<description>Gals Panic S2 (Japan)</description>
 	<rotation>horizontal</rotation>
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="galpans2.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="galpans2j.zip|galpans2.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="294b2f14" name="gs210000.u21" map="12345678" />
 		</interleave>

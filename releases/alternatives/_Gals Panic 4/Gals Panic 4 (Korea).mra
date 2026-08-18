@@ -1,9 +1,10 @@
 <misterromdescription>
 	<rbf>Arcade-SKNS</rbf>
-	<setname>galpanisu</setname>
-	<description>Gals Panic SU (Korea, Gals Panic 4 re-release)</description>
+	<mameversion>0289</mameversion>
+	<setname>galpani4k</setname>
+	<description>Gals Panic 4 (Korea)</description>
 	<rotation>horizontal</rotation>
-	<year>2000</year>
+	<year>1996</year>
 	<manufacturer>Kaneko</manufacturer>
 	<buttons names="Button 1,Button 2,Start,Coin,Service" />
 
@@ -13,7 +14,7 @@
 		<dip bits="7" name="Freeze" ids="Yes,No"/>
 	</switches>
 
-	<rom index="0" md5="" zip="galpani4.zip|skns.zip" address="0x30000000">
+	<rom index="0" md5="" zip="galpani4k.zip|galpani4.zip|skns.zip" address="0x30000000">
 		<interleave output="64">
 			<part crc="1df61f01" name="gp4-100-00.u24" map="12345678" />
 		</interleave>
@@ -45,9 +46,10 @@
 		</interleave>
 		<part repeat="0x180000">00</part>
 		<interleave output="64">
-			<part crc="3bf4c440" name="gpsu_e_1q07_00.6.5.u10" map="13570" />
-			<part crc="d4fef828" name="gpsu_o_16d1_00.6.5.u8" map="1357" />
+			<part crc="cbd5c3a0" name="gp4k1.u10" map="13570" />
+			<part crc="7a95bfe2" name="gp4k1.u8" map="1357" />
 		</interleave>
+		<part repeat="0x100000">00</part>
 	</rom>
 	<rom index="2" md5="" >
 		<part>10 4B FB FF FF FF</part>
