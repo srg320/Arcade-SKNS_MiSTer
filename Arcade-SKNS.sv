@@ -371,7 +371,7 @@ module emu
 	end
 	wire rst_sys = reset | download | rst_ram | loader_rst;
 	
-	//[1:0]
+	//[3:0] - game mode: 1-position of the visible portion of fb in the lower-right corner (sengeki)
 	//[5:4] - input mode: 1,2,3 buttons
 	//[6] - input mode: paddle
 	reg [ 7: 0] BOARD_CONF = 8'h10;
@@ -386,6 +386,7 @@ module emu
 			endcase
 		end
 	end
+	wire SENGEKI_HACK = (BOARD_CONF[3:0] == 4'h1);
 	
 	reg [7:0] dip_sw = '0;
 	always @(posedge clk_sys) begin
@@ -842,10 +843,10 @@ module emu
 							  !BIOS_CE_N ? ~brom_busy : ~grom_busy;
 							  
 	//Sprite FB
-	wire         FB0_EXT_SEL = SPR_FB0_A[9:1] >= 9'd320 || SPR_FB0_A[18:10] >= 9'd256;
-	wire         FB1_EXT_SEL = SPR_FB1_A[9:1] >= 9'd320 || SPR_FB1_A[18:10] >= 9'd256;
-	wire [17: 1] FB0_A = {SPR_FB0_A[9:1],SPR_FB0_A[17:10]};
-	wire [17: 1] FB1_A = {SPR_FB1_A[9:1],SPR_FB1_A[17:10]};
+	wire         FB0_EXT_SEL = SENGEKI_HACK ? (SPR_FB0_A[9:1] < 9'd192 || SPR_FB0_A[18:10] < 9'd256) : (SPR_FB0_A[9:1] >= 9'd320 || SPR_FB0_A[18:10] >= 9'd256);
+	wire         FB1_EXT_SEL = SENGEKI_HACK ? (SPR_FB1_A[9:1] < 9'd192 || SPR_FB1_A[18:10] < 9'd256) : (SPR_FB1_A[9:1] >= 9'd320 || SPR_FB1_A[18:10] >= 9'd256);
+	wire [17: 1] FB0_A = SENGEKI_HACK ? {SPR_FB0_A[9:1]-9'd192,SPR_FB0_A[17:10]} : {SPR_FB0_A[9:1],SPR_FB0_A[17:10]};
+	wire [17: 1] FB1_A = SENGEKI_HACK ? {SPR_FB1_A[9:1]-9'd192,SPR_FB1_A[17:10]} : {SPR_FB1_A[9:1],SPR_FB1_A[17:10]};
 	wire [15: 0] FB0_Q,FB1_Q;
 	
 	spc_fb_320x256x16 spc_fb0
@@ -927,8 +928,8 @@ module emu
 	end
 	wire ce_pix = DCE;
 	
-	wire [11:0] orig_arx = (/*V240 ? (12'd4<<two_screen) :*/ (12'd10));
-	wire [11:0] orig_ary = (/*V240 ? 12'd3               :*/ 12'd7);
+	wire [11:0] orig_arx = 12'd4;
+	wire [11:0] orig_ary = 12'd3;
 	wire [11:0] arx = (!ar) ? (rotate_en ? orig_ary : orig_arx) : (ar - 1'd1);
 	wire [11:0] ary = (!ar) ? (rotate_en ? orig_arx : orig_ary) : 12'd0;
 	
