@@ -113,13 +113,20 @@ module SKNS
 	bit          CPU_CS3_N;
 	bit  [ 3: 0] CPU_IRL_N;
 
+	bit          DOT_CE;
+	bit          HBLANK_N;
+	bit          VBLANK_N;
+	bit          VINC_PRE_N;
+	bit          LAST_LINE_N;
+	bit  [ 8: 0] BABY_HCNT;
+	bit  [ 8: 0] BABY_VCNT;
+	
 	bit  [31: 0] VIEW3_DO,SPC_DO;
 	bit          VIEW3_WAIT_N,SPC_WAIT_N;
 	bit          VIEW3_HINT,VIEW3_VINT;
 	bit          HSPC_N;
 	bit  [15: 0] SPC_DATA;
 	bit          SPC_INT;
-	bit          DOT_CE;
 
 	bit  [ 3: 0] RTC_DO;
 	
@@ -130,10 +137,8 @@ module SKNS
 	bit  [20: 0] YMZ_MA;
 	bit  [ 9: 0] YMZ_MCS_N;
 	
-	bit  [ 7: 0] IO_DO;
+	bit  [ 7: 0] VEGA_DO;
 	bit  [15: 0] HIT_DO;
-	
-	bit          VBI_IRQ,SPC_IRQ,HBI_IRQ,TM0_IRQ,TM1_IRQ;
 	
 	wire         BIOS_SEL  = (!CPU_CS0_N && CPU_A[24:22] == 3'b000);
 	wire         IO_SEL    = (!CPU_CS0_N && CPU_A[24:22] == 3'b001);
@@ -224,7 +229,7 @@ module SKNS
 	assign CPU_DI = !BIOS_CE_N ? {24'h000000,ROM_D[7:0]} : 
 	                NVRAM_SEL  ? {24'h000000,NVRAM_DI} : 
 	                YMZ_SEL ? {24'h000000,YMZ_DO} :
-						 IO_SEL ? {24'h000000,IO_DO} :
+						 IO_SEL ? {24'h000000,VEGA_DO} :
 						 RTC_SEL ? {28'h0000000,RTC_DO} :
 						 HIT_SEL    ? (LOCK ? 32'h00000000 : {16'h0000,HIT_DO}) :
 						 SPR_SEL ? SPC_DO :
@@ -250,7 +255,33 @@ module SKNS
 	assign NVRAM_OE_N = CPU_RD_N;
 	assign NVRAM_CE_N = ~NVRAM_SEL;
 	
-	////
+	
+	SKNS_BABY BABY
+	(
+		.CLK(CLK),
+		.RST_N(RST_N),
+		.EN(EN),
+		
+		.CE_F(SYS_CE_F),
+		.CE_R(SYS_CE_R),
+		
+		.DOT_CE(DOT_CE),
+		.HCNT(BABY_HCNT),
+		.VCNT(BABY_VCNT),
+		.HBLANK_N(HBLANK_N),
+		.VBLANK_N(VBLANK_N),
+		.VINC_PRE_N(VINC_PRE_N),
+		.LAST_LINE_N(LAST_LINE_N),
+		
+		.HSPC_N(HSPC_N),
+		
+		.DCLK(DCLK),
+		.HS_N(HS_N),
+		.VS_N(VS_N),
+		.HBL_N(HBL_N),
+		.VBL_N(VBL_N)
+	);
+	
 	SKNS_VIEW3 VIEW3
 	(
 		.CLK(CLK),
@@ -272,8 +303,8 @@ module SKNS
 		.WAIT_N(VIEW3_WAIT_N),
 		
 		.DOT_CE(DOT_CE),
-		.HINT(VIEW3_HINT),
-		.VINT(VIEW3_VINT),
+		.HCNT(BABY_HCNT),
+		.VCNT(BABY_VCNT),
 		
 		.BG0_ROM_A(BGA_ROM_A),
 		.BG0_ROM_D(BGA_ROM_D),
@@ -288,17 +319,11 @@ module SKNS
 		.BG1_RAM_WE_N(BGB_RAM_WE_N),
 		.BG1_RAM_RD_N(BGB_RAM_RD_N),
 		
-		.HSPC_N(HSPC_N),
 		.SPC_DATA(SPC_DATA),
 		
 		.R(R),
 		.G(G),
 		.B(B),
-		.DCLK(DCLK),
-		.HS_N(HS_N),
-		.VS_N(VS_N),
-		.HBL_N(HBL_N),
-		.VBL_N(VBL_N),
 		
 		.SCRN_EN(SCRN_EN[2:0])
 	);
@@ -384,73 +409,57 @@ module SKNS
 		.SND_EN(SND_EN)
 	);
 
-	//Interrupts
-	wire         IRQ_ACK = (IO_SEL && CPU_A[3:0] == 4'hE && !CPU_WE_N[0]);
+	//IO
+	wire IO_WE_N = CPU_WE_N[0] | CPU_CS0_N;
+	wire IO_OE_N = CPU_RD_N | CPU_CS0_N;
+	wire VEGA_CE_N = ~IO_SEL;
+	
+	bit          VINC_PULSE;
 	always @(posedge CLK or negedge RST_N) begin
-		bit          HINT_OLD,VINT_OLD;
-		bit          SPC_INT_OLD;
-		bit          IRQ_ACK_OLD;
-		bit  [17: 0] TM0_CNT,TM1_CNT;
+		bit          VINC_PRE_N_OLD;
 		
 		if (!RST_N) begin
-			{HBI_IRQ,VBI_IRQ,SPC_IRQ,TM0_IRQ,TM1_IRQ} <= '0;
+			VINC_PULSE <= 0;
 		end else if (EN) begin
 			if (SYS_CE_R) begin
-				HINT_OLD <= VIEW3_HINT;
-				VINT_OLD <= VIEW3_VINT;
-				if (VIEW3_HINT && !HINT_OLD) begin
-					HBI_IRQ <= 1;
-				end
-				if (VIEW3_VINT && !VINT_OLD) begin
-					VBI_IRQ <= 1;
-				end
-				
-				SPC_INT_OLD <= SPC_INT;
-				if (SPC_INT && !SPC_INT_OLD) begin
-					SPC_IRQ <= 1;
-				end
-				
-				
-				TM0_CNT <= TM0_CNT + 1'd1;
-				if (TM0_CNT == 18'd57272-1) begin
-					TM0_CNT <= '0;
-					TM0_IRQ <= 1;
-				end
-				
-				TM1_CNT <= TM1_CNT + 1'd1;
-				if (TM1_CNT == 18'd229088-1) begin
-					TM1_CNT <= '0;
-					TM1_IRQ <= 1;
-				end
-				
-				IRQ_ACK_OLD <= IRQ_ACK;
-				if (IRQ_ACK && !IRQ_ACK_OLD) begin
-					if (!CPU_DO[0] && SPC_IRQ) SPC_IRQ <= 0;
-					if (!CPU_DO[2] && VBI_IRQ) VBI_IRQ <= 0;
-					if (!CPU_DO[4] && HBI_IRQ) HBI_IRQ <= 0;
-					if (!CPU_DO[5] && TM1_IRQ) TM1_IRQ <= 0;
-					if (!CPU_DO[7] && TM0_IRQ) TM0_IRQ <= 0;
-				end
+				VINC_PRE_N_OLD <= VINC_PRE_N;
+				VINC_PULSE <= VINC_PRE_N && !VINC_PRE_N_OLD;
 			end
 		end
 	end
 	
-	bit  [ 3: 0] INT_LVL;
-	always_comb begin
-		if (SPC_IRQ)
-			INT_LVL <= 4'h1;
-		else if (VBI_IRQ)
-			INT_LVL <= 4'h5;
-		else if (HBI_IRQ)
-			INT_LVL <= 4'h9;
-		else if (TM1_IRQ)
-			INT_LVL <= 4'hB;
-		else if (TM0_IRQ)
-			INT_LVL <= 4'hF;
-		else
-			INT_LVL <= 4'h0;
-	end
-	assign CPU_IRL_N = ~INT_LVL;
+	SKNS_VEGA VEGA
+	(
+		.CLK(CLK),
+		.RST_N(RST_N),
+		.EN(EN),
+		
+		.CE_F(SYS_CE_F),
+		.CE_R(SYS_CE_R),
+		
+		.RES_N(RES_N),
+		
+		.A(CPU_A[3:0]),
+		.DI(CPU_DO[7:0]),
+		.DO(VEGA_DO),
+		.OE_N(IO_OE_N),
+		.WE_N(IO_WE_N),
+		.CE_N(VEGA_CE_N),
+		
+		.HBLANK_N(HBLANK_N),
+		.VB_INT(~VBLANK_N),
+		.SPC_INT(SPC_INT),
+		.VINC_PULSE(VINC_PULSE),
+		.IRL_N(CPU_IRL_N),
+		
+		.P0I(P0),
+		.P1I(P1),
+		.P2I(P2),
+		.P3I(P3),
+		.P4I(P4),
+		.P5I(P5),
+		.P7I(P7)
+	);
 	
 	//RTC
 	MSM6242 RTC
@@ -515,59 +524,6 @@ module SKNS
 				
 			end
 		end
-	end
-	
-	//IO
-//	bit  [15: 0] HIT_REG0,HIT_REG2,HIT_REG14;
-//	bit  [16: 0] HIT_RND;
-//	always @(posedge CLK or negedge RST_N) begin
-//		bit          CPU_RD_N_OLD,CPU_WE_N_OLD;
-//		
-//		if (!RST_N) begin
-//			{HIT_REG0,HIT_REG2,HIT_REG14} <= '0;
-//			HIT_RND <= 17'h00001;
-//		end else if (EN) begin
-//			if (SYS_CE_R) begin
-//				CPU_WE_N_OLD <= &CPU_WE_N[1:0];
-//				CPU_RD_N_OLD <= CPU_RD_N;
-//				if (HIT_SEL && CPU_WE_N[1:0] != 2'b11 && CPU_WE_N_OLD) begin
-//					case ({CPU_A[6:2],2'b00})
-//						7'h00: HIT_REG0 <= CPU_DO[15:0];
-//						7'h08: HIT_REG2 <= CPU_DO[15:0];
-//						7'h38: HIT_REG14 <= CPU_DO[15:0];
-//						default:;
-//					endcase
-//				end
-//				if (HIT_SEL /*&& {CPU_A[6:2],2'b00} == 7'h28*/ && !CPU_RD_N && CPU_RD_N_OLD) begin
-//					HIT_RND <= {HIT_RND[5]^HIT_RND[0],HIT_RND[16:1]};
-//				end
-//			end
-//		end
-//	end
-//	
-//	bit  [15: 0] HIT_DO;
-//	always_comb begin
-//		case ({CPU_A[6:2],2'b00})
-//			7'h28: HIT_DO <= HIT_RND[15:0];//TODO
-//			7'h40: HIT_DO <= HIT_REG0;
-//			7'h48: HIT_DO <= HIT_REG2;
-//			7'h50: HIT_DO <= HIT_REG14;
-//			default: HIT_DO <= '0;
-//		endcase
-//	end
-	
-	always_comb begin
-		case (CPU_A[2:0])
-			3'h0: IO_DO <= P0;
-			3'h1: IO_DO <= P1;
-			3'h2: IO_DO <= P2;
-			3'h3: IO_DO <= P3;
-			3'h4: IO_DO <= P4;
-			3'h5: IO_DO <= P5;
-			3'h6: IO_DO <= P6;
-			3'h7: IO_DO <= P7;
-			default: IO_DO <= '1;
-		endcase
 	end
 	
 `ifdef DEBUG

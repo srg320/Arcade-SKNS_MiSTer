@@ -48,7 +48,8 @@ module SKNS_SPC2
 	output reg         DBG_SPR_SKIP_EN,
 	output             DBG_SPR_HIT,
 	output reg [ 9: 0] DBG_SPR_OFFSX,DBG_SPR_OFFSY,
-	output             DBG_DRAW_NEXT
+	output             DBG_DRAW_NEXT,
+	output reg         DBG_SPR_ZOOMED
 `endif
 );
 
@@ -232,13 +233,13 @@ module SKNS_SPC2
 	DrawState_t  DRAW_ST;
 	
 	Sprite_t     SPR_ATTR;
-	wire [15: 0] SPR_OFFS_X = {/*SREG[2][14],*/SREG[2][15:0]};
-	wire [15: 0] SPR_OFFS_Y = {/*SREG[4][14],*/SREG[4][15:0]};
+	wire [14: 0] SPR_DISP_X = SREG[4][14:0];
+	wire [14: 0] SPR_DISP_Y = SREG[2][14:0];
 	wire [15: 0] SPR_ORIG_X[4] = '{SREG[6][15:0],SREG[8][15:0],SREG[10][15:0],SREG[12][15:0]};
 	wire [15: 0] SPR_ORIG_Y[4] = '{SREG[7][15:0],SREG[9][15:0],SREG[11][15:0],SREG[13][15:0]};
 	wire         SPR_ORIG_XY_EN = SREG[0][6];
-	wire         SPR_DRAW_FLIPX = SREG[1][1];
-	wire         SPR_DRAW_FLIPY = SREG[1][0];
+	wire         SPR_DISP_FLIPX = SREG[1][1];
+	wire         SPR_DISP_FLIPY = SREG[1][0];
 //	wire [ 9: 0] SPR_LIST_NUM = SREG[3][9:0];
 	
 	SprCoord_t   SPR_SX,SPR_SY;
@@ -324,11 +325,11 @@ module SKNS_SPC2
 							SPR_Y <= SPR_Y + SPR_ATTR.Y;
 						end
 `ifdef DEBUG
-						SPR_SX <= (SPR_ORIG_XY_EN ? SPR_ORIG_X[SPR_ATTR.GROUP] + SPR_OFFS_X : 16'h0) + {SPR_OFFSX,6'h00} + {DBG_SPR_OFFSX,6'h00};
-						SPR_SY <= (SPR_ORIG_XY_EN ? SPR_ORIG_Y[SPR_ATTR.GROUP] + SPR_OFFS_Y : 16'h0) + {SPR_OFFSY,6'h00} + {DBG_SPR_OFFSY,6'h00};
+						SPR_SX <= (SPR_ORIG_XY_EN ? SPR_ORIG_X[SPR_ATTR.GROUP] : 16'h0) + {SPR_OFFSX,6'h00} + {DBG_SPR_OFFSX,6'h00};
+						SPR_SY <= (SPR_ORIG_XY_EN ? SPR_ORIG_Y[SPR_ATTR.GROUP] : 16'h0) + {SPR_OFFSY,6'h00} + {DBG_SPR_OFFSY,6'h00};
 `else
-						SPR_SX <= (SPR_ORIG_XY_EN ? SPR_ORIG_X[SPR_ATTR.GROUP] + SPR_OFFS_X : 16'h0) + {SPR_OFFSX,6'h00};
-						SPR_SY <= (SPR_ORIG_XY_EN ? SPR_ORIG_Y[SPR_ATTR.GROUP] + SPR_OFFS_Y : 16'h0) + {SPR_OFFSY,6'h00};
+						SPR_SX <= (SPR_ORIG_XY_EN ? SPR_ORIG_X[SPR_ATTR.GROUP] : 16'h0) + {SPR_OFFSX,6'h00};
+						SPR_SY <= (SPR_ORIG_XY_EN ? SPR_ORIG_Y[SPR_ATTR.GROUP] : 16'h0) + {SPR_OFFSY,6'h00};
 `endif
 						SPR_FLIPX <= SPR_ATTR.FLIPX;
 						SPR_FLIPY <= SPR_ATTR.FLIPY;
@@ -352,6 +353,9 @@ module SKNS_SPC2
 							SPR_ZOOMXS <= 17'h10000;
 							SPR_ZOOMYS <= 17'h10000;
 						end
+`ifdef DEBUG
+						DBG_SPR_ZOOMED <= |SPR_ATTR.ZOOMXD || |SPR_ATTR.ZOOMYD || |SPR_ATTR.ZOOMXS || |SPR_ATTR.ZOOMYS;
+`endif
 						
 						STATE <= ST_DEC_INIT;
 					end
@@ -582,20 +586,20 @@ module SKNS_SPC2
 				HBL_N_OLD <= HBL_N;
 				VBL_N_OLD <= VBL_N;
 				if (HBL_N) begin
-					DISP_FB_X <= DISP_FB_X + 9'd1;
+					DISP_FB_X <= DISP_FB_X + {{8{SPR_DISP_FLIPX}},1'b1};
 				end
 				if (!HBL_N && HBL_N_OLD) begin
-					DISP_FB_X <= '0;
-					if (VBL_N) DISP_FB_Y <= DISP_FB_Y + 9'd1;
+					DISP_FB_X <= SPR_DISP_X[14:6];
+					if (VBL_N) DISP_FB_Y <= DISP_FB_Y + {{8{SPR_DISP_FLIPY}},1'b1};
 				end
 				if (!VBL_N && VBL_N_OLD) begin
-					DISP_FB_Y <= '0;
+					DISP_FB_Y <= SPR_DISP_Y[14:6];
 					FB_SEL <= ~FB_SEL;
 				end
 			end
 		end
 	end
-	wire [18: 1] DRAW_FB_A = {DRAW_FB_Y^{9{SPR_DRAW_FLIPY}},DRAW_FB_X^{9{SPR_DRAW_FLIPX}}};
+	wire [18: 1] DRAW_FB_A = {DRAW_FB_Y,DRAW_FB_X};
 	wire [15: 0] DRAW_FB_D = {SPR_PRI,SPR_PAL,DRAW_PIX};
 `ifdef DEBUG
 	wire         DRAW_FB_WE = DRAW_FB_WRITE & CE_R & ~DBG_SPR_HIT;

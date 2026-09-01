@@ -18,9 +18,9 @@ module SKNS_VIEW3
 	input              CS2_N,
 	output             WAIT_N,
 	
-	output             DOT_CE,
-	output             HINT,
-	output             VINT,
+	input              DOT_CE,
+	input      [ 8: 0] HCNT,
+	input      [ 8: 0] VCNT,
 	
 	output     [23: 0] BG0_ROM_A,
 	input      [15: 0] BG0_ROM_D,
@@ -35,17 +35,11 @@ module SKNS_VIEW3
 	output     [ 1: 0] BG1_RAM_WE_N,
 	output             BG1_RAM_RD_N,
 	
-	output             HSPC_N,
 	input      [15: 0] SPC_DATA,
 	
 	output     [ 7: 0] R,
 	output     [ 7: 0] G,
 	output     [ 7: 0] B,
-	output             DCLK,
-	output             HS_N,
-	output             VS_N,
-	output             HBL_N,
-	output             VBL_N,
 	
 	input      [ 2: 0] SCRN_EN
 	
@@ -60,8 +54,6 @@ module SKNS_VIEW3
 
 	bit  [31: 0] VREG[32];
 	bit  [31: 0] PREG[8];
-	
-	bit          DOT_CE_R;
 	
 	wire         IO_VREG_SEL   = (A[24:0] >= (25'h400000) && A[24:0] <= (25'h40007F) && !CS1_N);
 	wire         IO_TILE_SEL   = (A[24:0] >= (25'h500000) && A[24:0] <= (25'h507FFF) && !CS1_N);
@@ -159,7 +151,7 @@ module SKNS_VIEW3
 			if (CE_R) begin
 				IO_BG1_RAM_RWAIT <= {IO_BG1_RAM_RWAIT[0],1'b0};
 			end
-			if (DOT_CE_R) begin
+			if (DOT_CE) begin
 				if (IO_BG1_RAM_WAIT) begin
 					IO_BG1_RAM_ADDR <= A[17:1];
 					IO_BG1_RAM_DATA <= DI[15: 0];
@@ -206,98 +198,31 @@ module SKNS_VIEW3
 			DOTCLK_DIV <= DOTCLK_DIV + 2'd1;
 		end
 	end
-	assign DOT_CE_R = (DOTCLK_DIV == 3) & CE_R;
-	assign DOT_CE = DOT_CE_R;
 	
-	wire [ 8: 0] DOT_PER_LINE = 9'd456;
-	wire [ 8: 0] HSYNC_START = 9'h168 /*+ HS_OFFS*/;
-	wire [ 8: 0] VBLK_START = 9'h0F0;
-	wire [ 8: 0] VSYNC_START = 9'd237+9'd16;
-	bit  [ 8: 0] HCNT;
-	bit  [ 8: 0] VCNT;
-	bit          HSYNC;
-	bit          VSYNC;
-	bit          HBLK;
-	bit          VBLK;
-	bit          HSPC,VSPC;
-	always @(posedge CLK) begin		
-		if (CLK_RES) begin
-			HCNT <= '0;
-			VCNT <= '0;
-			HSYNC <= 1;
-			VSYNC <= 1;
-			HBLK <= 0;
-			VBLK <= 0;
-			HSPC <= 0;
-		end else if (EN) begin
-			if (DOT_CE_R) begin
-				HCNT <= HCNT + 9'd1;
-				if (HCNT == DOT_PER_LINE - 1) begin
-					HCNT <= '0;
-					
-					VCNT <= VCNT + 9'd1;
-					if (VCNT == 9'h100) begin
-						VCNT <= 9'h1F9;
-					end
-					
-					if (VCNT == VBLK_START - 9'd1) begin
-						VBLK <= 1;
-					end
-					if (VCNT == 9'h1FF) begin
-						VBLK <= 0;
-					end
-				end
-				
-				if (HCNT == DOT_PER_LINE - 1 && VCNT == VSYNC_START - 9'd1) begin
-					VSYNC <= 1;
-				end
-				if (HCNT == DOT_PER_LINE - 1 && VCNT == VSYNC_START + 9'd3 - 1) begin
-					VSYNC <= 0;
-				end
-				
-				if (HCNT == HSYNC_START - 9'h1) begin
-					HSYNC <= 1;
-				end
-				if (HCNT == HSYNC_START + 9'd32 - 9'h1) begin
-					HSYNC <= 0;
-				end
-				
-				if (HCNT == 9'd320 - 1) begin
-					HBLK <= 1;
-				end
-				if (HCNT == DOT_PER_LINE - 1) begin
-					HBLK <= 0;
-				end
-				
-				
-				if (HCNT == 9'd320 - 2 - 1) begin
-					HSPC <= 1;
-				end
-				if (HCNT == DOT_PER_LINE - 2 - 1) begin
-					HSPC <= 0;
-					if (VCNT == VBLK_START - 9'd1) begin
-						VSPC <= 1;
-					end
-					if (VCNT == 9'h1FF) begin
-						VSPC <= 0;
-					end
-				end
-			end
-		end
-	end
-	assign DCLK = DOTCLK_DIV[1];
-	assign HS_N = ~HSYNC;
-	assign VS_N = ~VSYNC;
-	assign HBL_N = ~HBLK;
-	assign VBL_N = ~VBLK;
-	
-	assign HINT = HBLK;
-	assign VINT = VBLK;
-	
-	assign HSPC_N = ~HSPC;
+//	wire [ 8: 0] DOT_PER_LINE = 9'd455;
+//	bit  [ 8: 0] HCNT;
+//	bit  [ 8: 0] VCNT;
+//	always @(posedge CLK) begin		
+//		if (CLK_RES) begin
+//			HCNT <= '0;
+//			VCNT <= '0;
+//		end else if (EN) begin
+//			if (DOT_CE) begin
+//				HCNT <= HCNT + 9'd1;
+//				if (HCNT == DOT_PER_LINE - 1) begin
+//					HCNT <= '0;
+//					
+//					VCNT <= VCNT + 9'd1;
+//					if (VCNT == 9'h100) begin
+//						VCNT <= 9'h1F9;
+//					end
+//				end
+//			end
+//		end
+//	end
 
 	//BG
-	wire         BG_FETCH_TIME = (HCNT >= 9'h1C3 & (VCNT == 9'h1FF | VCNT <= 9'h0EE)) | (HCNT <= 9'h13B && VCNT <= 9'h0EF);
+	wire         BG_FETCH_TIME = (HCNT >= 9'h1C2 & (VCNT == 9'h1FF | VCNT <= 9'h0EE)) | (HCNT <= 9'h13B && VCNT <= 9'h0EF);
 	
 	wire         BG_EN[2] = '{VREG[4][0],VREG[13][0]};
 	wire         BG_PRIL[2] = '{VREG[4][1],VREG[13][1]};
@@ -330,8 +255,8 @@ module SKNS_VIEW3
 			BG_COL_SX <= '{2{'0}};
 			BG_COL_SY <= '{2{'0}};
 		end else if (EN) begin
-			if (DOT_CE_R) begin;
-				if (HCNT == 9'h1C1) begin
+			if (DOT_CE) begin;
+				if (HCNT == 9'h1C0) begin
 					for (int i=0;i<2;i++) begin
 						BG_COL_SX[i] <= BG_COL_SX[i] + BG_COL_INCX[i];
 						BG_COL_SY[i] <= BG_COL_SY[i] + BG_COL_INCY[i];
@@ -341,14 +266,14 @@ module SKNS_VIEW3
 						end
 					end
 				end
-				if (HCNT == 9'h1C2) begin
+				if (HCNT == 9'h1C1) begin
 					BG_X <= '0;
 					for (int i=0;i<2;i++) begin
 						BG_ROW_SX[i] <= BG_COL_SX[i];
 						BG_ROW_SY[i] <= BG_COL_SY[i];
 					end
 				end
-				if (HCNT >= 9'h1C3 || HCNT <= 9'h13B) begin
+				if (HCNT >= 9'h1C2 || HCNT <= 9'h13B) begin
 					BG_X <= BG_X + 9'd1;
 					for (int i=0;i<2;i++) begin
 						BG_ROW_SX[i] <= BG_ROW_SX[i] + BG_ROW_INCX[i];
@@ -417,7 +342,7 @@ module SKNS_VIEW3
 					2'b10: BG_TILE[1] <= TILE_RAM_Q;
 				endcase
 			end
-			if (DOT_CE_R) begin
+			if (DOT_CE) begin
 				for (int i=0;i<2;i++) begin
 					DOT_X[i] = OFFS_X[i][3:0] ^ {4{BG_TILE[i].FLIPX}};
 					DOT_Y[i] = OFFS_Y[i][3:0] ^ {4{BG_TILE[i].FLIPY}};
@@ -452,7 +377,7 @@ module SKNS_VIEW3
 			BG_PAL_C3 <= '{2{'0}};
 			BG_FINEX_C3 <= '{2{'0}};
 		end else if (EN) begin
-			if (DOT_CE_R) begin;
+			if (DOT_CE) begin;
 				BG_CHR_C3 <= '{BG0_ROM_D,BG1_ROM_D};
 				BG_PAL_C3 <= BG_PAL_C2;
 				BG_PRI_C3 <= BG_PRI_C2;
@@ -493,7 +418,7 @@ module SKNS_VIEW3
 			SPR_PRI = {SPC_DATA[15:14],2'b11};
 			SPR_VIS = |SPC_DATA[7:0] && SCRN_EN[2];
 			
-			if (DOT_CE_R) begin
+			if (DOT_CE) begin
 				for (int i=0;i<2;i++) begin
 					BG_OUT_PIX[i] <= BG_PIX[i];
 					BG_OUT_PAL[i] <= BG_PAL[i];
