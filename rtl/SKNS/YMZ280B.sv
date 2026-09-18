@@ -66,7 +66,7 @@ module YMZ280B
 	
 	bit  [ 7: 0] REG_A;
 	bit  [ 7: 0] REG_D;
-//	bit  [ 7: 0] REG_Q;
+	bit  [ 7: 0] REG_Q;
 	bit          REG_WR;
 	bit          REG_RD;
 	
@@ -264,7 +264,7 @@ module YMZ280B
 	bit  [ 8:0] PHASE_FRAC_RAM_Q;
 	YMZ_CH_RAM #(3,9) PHASE_FRAC_RAM(CLK, OP3.SLOT, PHASE_FRAC_RAM_D, SLOT1_CE, OP2.SLOT, PHASE_FRAC_RAM_Q);
 	
-	//Operation 3: WD read,ADPCM 	
+	//Operation 3: WD read,ADPCM
 	assign WD_ADDR = OP3.SA + (!CYCLE_NUM[1] ? 24'd0 : 24'd1);
 	
 	always @(posedge CLK or negedge RST_N) begin
@@ -432,7 +432,7 @@ module YMZ280B
 	//Memory/Registers
 	bit          MEM_WREQ,MEM_RREQ;
 	always @(posedge CLK or negedge RST_N) begin
-		bit         WR_N_OLD,RD_N_OLD,CS_N_OLD;
+		bit         WR_N_OLD,RD_N_OLD;
 		bit [ 1: 0] REG_RD_DELAY;
 		bit         CH_PLAY,CH_PLAY_OLD[8];
 		bit         MEM_START;
@@ -446,7 +446,7 @@ module YMZ280B
 			TST <= '0;
 			ENC <= '0;
 			FLG <= '0;
-//			REG_Q <= '0;
+			REG_Q <= '0;
 		end else begin
 			if (!RES_N) begin
 				MEMADDR <= '0;
@@ -461,22 +461,17 @@ module YMZ280B
 				MEM_A <= '0;
 				MEM_WR <= 0;
 				MEM_RD <= 0;
-			end else if (CE) begin
+			end else begin
 				//Register access
-				if (CYCLE1_CE) begin
-					REG_RD <= 0;
-					REG_WR <= 0;
+				WR_N_OLD <= WR_N | CS_N;
+				RD_N_OLD <= RD_N | CS_N;
+				if (!WR_N && WR_N_OLD && !CS_N && A == 1'b0) begin
+					REG_A <= DI;
 				end
-				
-				CH_PLAY = SA_RAM_Q[25];
-				if (SLOT1_CE) begin
-					CH_PLAY_OLD[OP2.SLOT] <= CH_PLAY;
-					if (!CH_PLAY && CH_PLAY_OLD[OP2.SLOT]) FLG[OP2.SLOT] <= 1;
+				if (!WR_N && WR_N_OLD && !CS_N && A == 1'b1) begin
+					REG_D <= DI;
+					REG_WR <= 1;
 				end
-				
-				WR_N_OLD <= WR_N;
-				RD_N_OLD <= RD_N;
-				CS_N_OLD <= CS_N;
 				if (!RD_N && RD_N_OLD && !CS_N && A == 1'b0) begin
 					REG_RD <= 1;
 				end
@@ -484,19 +479,10 @@ module YMZ280B
 					STATUS <= FLG;
 					FLG <= '0;
 				end
-				if (!WR_N && WR_N_OLD && !CS_N) begin
-					case (A)
-						1'b0: REG_A <= DI;
-						1'b1: begin
-							REG_D <= DI;
-							REG_WR <= 1;
-						end
-					endcase
-				end
 				
 				REG_RD_DELAY[0] <= REG_RD;
 				REG_RD_DELAY[1] <= REG_RD_DELAY[0];
-				if (REG_WR && CYCLE1_CE) begin
+				if (REG_WR) begin
 					case (REG_A)
 						8'h84: MEMADDR[23:16] <= REG_D;
 						8'h85: MEMADDR[15:8] <= REG_D;
@@ -506,39 +492,54 @@ module YMZ280B
 						8'hFF: {KENB,MENB,IENB,TST} <= {REG_D[7:6],REG_D[4],REG_D[1:0]};
 						default:;
 					endcase
-					if (REG_A == 8'h87) MEM_WREQ <= 1;
-					if (REG_A == 8'h86) MEM_RREQ <= 1;
 				end
-				if (REG_RD_DELAY == 2'b01) begin
-					MEM_RREQ <= 1;
-				end
-				
-				//Memory access
-				if (CYCLE1_CE) begin
-					if (MEM_RD && MENB) begin
-						MEM_D <= MDI;
-					end
-//					if ((MEM_RD || MEM_WR) && MENB) begin
-//						MEMDAT <= MDI;
-//						MEMADDR <= MEMADDR + 24'd1;
-//					end
-					MEM_WR <= 0;
-					MEM_RD <= 0;
-				end
-				
-				MEM_START <= CYCLE1_CE;
-				if (MEM_START && WD_READ && MENB) begin
-					MEM_A <= WD_ADDR;
-					MEM_WR <= 0;
-					MEM_RD <= 1;
-				end
-//				else if (MEM_START && (MEM_WREQ || MEM_RREQ) && MENB) begin
-//					MEM_A <= MEMADDR;
-//					MEM_WR <= MEM_WREQ;
-//					MEM_RD <= MEM_RREQ;
-//					MEM_WREQ <= 0;
-//					MEM_RREQ <= 0;
+//				if (REG_RD_DELAY == 2'b01) begin
+//					MEM_RREQ <= 1;
 //				end
+				
+				if (CE) begin
+					if (CYCLE1_CE) begin
+						REG_RD <= 0;
+						REG_WR <= 0;
+					end
+					
+					CH_PLAY = SA_RAM_Q[25];
+					if (SLOT1_CE) begin
+						CH_PLAY_OLD[OP2.SLOT] <= CH_PLAY;
+						if (!CH_PLAY && CH_PLAY_OLD[OP2.SLOT]) FLG[OP2.SLOT] <= 1;
+					end
+					
+					//Memory access
+					if (CYCLE1_CE) begin
+						if (REG_WR) begin
+							if (REG_A == 8'h87) MEM_WREQ <= 1;
+							if (REG_A == 8'h86) MEM_RREQ <= 1;
+						end
+						if (MEM_RD && MENB) begin
+							MEM_D <= MDI;
+						end
+	//					if ((MEM_RD || MEM_WR) && MENB) begin
+	//						MEMDAT <= MDI;
+	//						MEMADDR <= MEMADDR + 24'd1;
+	//					end
+						MEM_WR <= 0;
+						MEM_RD <= 0;
+					end
+					
+					MEM_START <= CYCLE1_CE;
+					if (MEM_START && WD_READ && MENB) begin
+						MEM_A <= WD_ADDR;
+						MEM_WR <= 0;
+						MEM_RD <= 1;
+					end
+	//				else if (MEM_START && (MEM_WREQ || MEM_RREQ) && MENB) begin
+	//					MEM_A <= MEMADDR;
+	//					MEM_WR <= MEM_WREQ;
+	//					MEM_RD <= MEM_RREQ;
+	//					MEM_WREQ <= 0;
+	//					MEM_RREQ <= 0;
+	//				end
+				end
 			end
 		end
 	end
