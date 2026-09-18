@@ -107,8 +107,8 @@ module SKNS_VEGA
 					LINE_CNT <= LINE_CNT + 7'd1;
 				end
 				if (!HBLANK_N && HBLANK_N_OLD) begin
-					TM0_IRQ <= &LINE_CNT[6:0];
-					TM1_IRQ <= &LINE_CNT[4:0];
+					TM0_IRQ <= &LINE_CNT[4:0];
+					TM1_IRQ <= &LINE_CNT[6:0];
 				end
 				
 				IRQ_ACK_OLD <= IRQ_ACK;
