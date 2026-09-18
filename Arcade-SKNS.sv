@@ -394,9 +394,9 @@ module emu
 			dip_sw <= ioctl_data[7:0];
 	end
 	
-	wire [7:0] p0,p1,p2,p3,p4,p5,p6,p7,pF;
+	wire [7:0] p0,p1,p2,p3,p4,p5,p6,p7;
 	always_comb begin
-		{p0,p1,p2,p3,p4,p5,p6,p7,pF} = '1;
+		{p0,p1,p2,p3,p4,p5,p6,p7} = '1;
 		if (BOARD_CONF[5:4] == 2'h0) begin //1 button
 			p0 = ~{3'b000,joystick_0[4],joystick_0[0],joystick_0[1],joystick_0[2],joystick_0[3]};
 			p1 = ~{3'b000,joystick_1[4],joystick_1[0],joystick_1[1],joystick_1[2],joystick_1[3]};
@@ -435,7 +435,7 @@ module emu
 	
 	wire         MEM_WAIT_N;
 	
-	wire [23: 0] SPR_ROM_A;
+	wire [23: 1] SPR_ROM_A;
 	wire [15: 0] SPR_ROM_D;
 	wire         SPR_ROM_RD_N;
 	wire         SPR_ROM_WAIT;
@@ -453,7 +453,7 @@ module emu
 	wire [15: 0] BGA_ROM_D;
 	wire         BGA_ROM_RD_N;
 	wire [17: 1] BGB_RAM_A;
-	wire [15: 0] BGB_RAM_WD;
+	wire [15: 0] BGB_RAM_DO;
 	wire [ 1: 0] BGB_RAM_WE_N;
 	wire         BGB_RAM_RD_N;
 	wire [23: 0] BGB_ROM_A;
@@ -487,15 +487,15 @@ module emu
 	wire SYS_CE_R =  CLK_DIV;
 	wire SYS_CE_F = ~CLK_DIV;
 	
-	wire YMZ_CE;	//Audio clock
-	CEGen AUD_CEGen
+	wire X33M_CE;	//33M clock
+	CEGen X33M_CEGen
 	(
 		.CLK(clk_sys),
 		.RST_N(1),
 		.IN_CLK(in_clk),
 		.IN_CE(1),
-		.OUT_CLK(16666666),
-		.CE(YMZ_CE)
+		.OUT_CLK(33333333),
+		.CE(X33M_CE)
 	);
 	
 	wire X32K_CE;	//RTC clock
@@ -517,7 +517,7 @@ module emu
 		
 		.SYS_CE_F(SYS_CE_F),
 		.SYS_CE_R(SYS_CE_R),
-		.YMZ_CE(YMZ_CE),
+		.X33M_CE(X33M_CE),
 		.X32K_CE(X32K_CE),
 		
 		.RES_N(~status[0]),
@@ -556,7 +556,7 @@ module emu
 		.BGA_ROM_RD_N(BGA_ROM_RD_N),
 		
 		.BGB_RAM_A(BGB_RAM_A),
-		.BGB_RAM_WD(BGB_RAM_WD),
+		.BGB_RAM_DO(BGB_RAM_DO),
 		.BGB_RAM_WE_N(BGB_RAM_WE_N),
 		.BGB_RAM_RD_N(BGB_RAM_RD_N),
 		.BGB_ROM_A(BGB_ROM_A),
@@ -639,7 +639,7 @@ module emu
 		.wr  (loader_exec),
 		.din (sdr_rom_data),
 		
-		.raddr1(SPR_ROM_A),
+		.raddr1({SPR_ROM_A,1'b0}),
 		.rd1   (1'b0/*~SPR_ROM_RD_N*/),
 		.dout1 (sdr_dout1),
 		
@@ -656,7 +656,7 @@ module emu
 		.dout4 (sdr_dout4),
 		
 		.addr5 (BGB_RAM_A),
-		.din5  (BGB_RAM_WD),
+		.din5  (BGB_RAM_DO),
 		.we5   (~BGB_RAM_WE_N),
 		.rd5   (~BGB_RAM_RD_N)
 	);

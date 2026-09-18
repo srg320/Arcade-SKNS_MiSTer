@@ -9,18 +9,18 @@ module SKNS_VIEW3
 	
 	input              RES_N,
 	
-	input      [24: 0] A,
+	input      [14: 2] A,
 	input      [31: 0] DI,
 	output     [31: 0] DO,
 	input              RD_N,
 	input      [ 3: 0] WE_N,
-	input              CS1_N,
-	input              CS2_N,
+	input      [ 1: 0] CE,
 	output             WAIT_N,
 	
 	input              DOT_CE,
 	input      [ 8: 0] HCNT,
 	input      [ 8: 0] VCNT,
+	output             BG1_RENDER,
 	
 	output     [23: 0] BG0_ROM_A,
 	input      [15: 0] BG0_ROM_D,
@@ -30,16 +30,8 @@ module SKNS_VIEW3
 	input      [15: 0] BG1_ROM_D,
 	output             BG1_ROM_RD_N,
 	
-	output     [17: 1] BG1_RAM_A,
-	output     [15: 0] BG1_RAM_WD,
-	output     [ 1: 0] BG1_RAM_WE_N,
-	output             BG1_RAM_RD_N,
-	
-	input      [15: 0] SPC_DATA,
-	
-	output     [ 7: 0] R,
-	output     [ 7: 0] G,
-	output     [ 7: 0] B,
+	output     [17: 0] BG0_PIX,
+	output     [17: 0] BG1_PIX,
 	
 	input      [ 2: 0] SCRN_EN
 	
@@ -53,20 +45,15 @@ module SKNS_VIEW3
 	import SKNS_PKG::*;
 
 	bit  [31: 0] VREG[32];
-	bit  [31: 0] PREG[8];
 	
-	wire         IO_VREG_SEL   = (A[24:0] >= (25'h400000) && A[24:0] <= (25'h40007F) && !CS1_N);
-	wire         IO_TILE_SEL   = (A[24:0] >= (25'h500000) && A[24:0] <= (25'h507FFF) && !CS1_N);
-	wire         IO_SCROLL_SEL = (A[24:0] >= (25'h600000) && A[24:0] <= (25'h607FFF) && !CS1_N);
-	wire         IO_PREG_SEL   = (A[24:0] >= (25'hA00000) && A[24:0] <= (25'hA0001F) && !CS1_N);
-	wire         IO_PAL_SEL    = (A[24:0] >= (25'hA40000) && A[24:0] <= (25'hA5FFFF) && !CS1_N);
-	wire         IO_CG_SEL     = (A[24:23] == 2'b01 && !CS2_N);
+	wire         IO_VREG_SEL   = (CE == 2'b00);
+	wire         IO_TILE_SEL   = (CE == 2'b01);
+	wire         IO_SCROLL_SEL = (CE == 2'b10);
 	
 	bit          WE_N_OLD;
 	always @(posedge CLK or negedge RST_N) begin		
 		if (!RST_N) begin
 			VREG <= '{32{'0}};
-			PREG <= '{8{'0}};
 		end else if (EN) begin
 			if (CE_R) begin
 				WE_N_OLD <= &WE_N;
@@ -76,108 +63,14 @@ module SKNS_VIEW3
 					if (!WE_N[1]) VREG[A[6:2]][15: 8] <= DI[15: 8];
 					if (!WE_N[0]) VREG[A[6:2]][ 7: 0] <= DI[ 7: 0];
 				end
-				if (IO_PREG_SEL && !(&WE_N) && WE_N_OLD) begin
-					if (!WE_N[3]) PREG[A[4:2]][31:24] <= DI[31:24];
-					if (!WE_N[2]) PREG[A[4:2]][23:16] <= DI[23:16];
-					if (!WE_N[1]) PREG[A[4:2]][15: 8] <= DI[15: 8];
-					if (!WE_N[0]) PREG[A[4:2]][ 7: 0] <= DI[ 7: 0];
-				end
 			end
 		end
 	end
 	assign DO = IO_VREG_SEL ? VREG[A[6:2]] : 
-					IO_PREG_SEL ? PREG[A[4:2]] : 
-	            IO_PAL_SEL  ? {16'h0000,IO_PAL_DO} : 
 					IO_TILE_SEL ? IO_TILE_RAM_Q :
 					IO_SCROLL_SEL ? IO_SCROLL_RAM_Q :
-					IO_CG_SEL    ? {16'h0000,IO_BG1_RAM_DO} :
 					'0;
-	assign WAIT_N = ~(IO_CG_SEL & |{IO_BG1_RAM_WAIT,IO_BG1_RAM_RWAIT}) & ~(IO_PAL_SEL & IO_PAL_WAIT);
-	
-	//Palette
-	bit  [15: 0] IO_PAL_DO;
-	bit          IO_PAL_WAIT;
-	bit          IO_PAL_CYCLE;
-	always @(posedge CLK or negedge RST_N) begin
-		bit          IO_PAL_SEL_OLD;
-		
-		if (!RST_N) begin
-			IO_PAL_WAIT <= 0;
-			IO_PAL_CYCLE <= 0;
-		end else if (EN) begin
-			IO_PAL_SEL_OLD <= IO_PAL_SEL;
-			if (IO_PAL_SEL && !IO_PAL_SEL_OLD) begin
-				IO_PAL_WAIT <= 1;
-			end
-			if (CE_R) begin
-				if (DOTCLK_DIV == 2'b11) IO_PAL_CYCLE <= IO_PAL_WAIT;
-				if (IO_PAL_CYCLE) begin
-					IO_PAL_DO <= PAL_Q;
-					IO_PAL_CYCLE <= 0;
-					IO_PAL_WAIT <= 0;
-				end
-			end
-		end
-	end
-	
-	wire [14: 0] PAL_RA = DOTCLK_DIV == 2'b00 ? A[16:2] : BG_COLOR;
-	bit  [15: 0] PAL_Q;
-	SKNS_PAL_RAM PAL(CLK, A[16:2], DI[15:0], ~WE_N[1:0] & {2{IO_PAL_CYCLE & CE_R}}, PAL_RA, PAL_Q);
-	
-	//BGB char RAM
-	bit          RENDER_BG1_CYCLE;
-	bit  [17: 1] IO_BG1_RAM_ADDR;
-	bit  [15: 0] IO_BG1_RAM_DATA;
-	bit  [ 1: 0] IO_BG1_RAM_WE;
-	bit          IO_BG1_RAM_RD;
-	bit  [15: 0] IO_BG1_RAM_DO;
-	bit          IO_BG1_RAM_WAIT;
-	bit  [ 1: 0] IO_BG1_RAM_RWAIT;
-	bit          IO_BG1_RAM_CYCLE;
-	always @(posedge CLK or negedge RST_N) begin
-		bit         CG_SEL_OLD;
-		
-		if (!RST_N) begin
-			{IO_BG1_RAM_WAIT,IO_BG1_RAM_RWAIT} <= '0;
-			IO_BG1_RAM_CYCLE <= 0;
-			IO_BG1_RAM_WE <= '0;
-			IO_BG1_RAM_RD <= 0;
-		end else if (EN) begin
-			CG_SEL_OLD <= IO_CG_SEL;
-			if (IO_CG_SEL && !CG_SEL_OLD) begin
-				IO_BG1_RAM_WAIT <= 1;
-			end
-			
-			if (CE_R) begin
-				IO_BG1_RAM_RWAIT <= {IO_BG1_RAM_RWAIT[0],1'b0};
-			end
-			if (DOT_CE) begin
-				if (IO_BG1_RAM_WAIT) begin
-					IO_BG1_RAM_ADDR <= A[17:1];
-					IO_BG1_RAM_DATA <= DI[15: 0];
-					IO_BG1_RAM_WE <= ~WE_N[1:0];
-					IO_BG1_RAM_RD <= ~RD_N;
-					IO_BG1_RAM_CYCLE <= 1;
-				end
-				if (IO_BG1_RAM_CYCLE && !RENDER_BG1_CYCLE) begin
-					IO_BG1_RAM_WE <= '0;
-					IO_BG1_RAM_RD <= 0;
-					IO_BG1_RAM_CYCLE <= 0;
-					IO_BG1_RAM_WAIT <= 0;
-					IO_BG1_RAM_RWAIT[0] <= IO_BG1_RAM_RD;
-				end
-			end
-			if (CE_R) begin
-				if (IO_BG1_RAM_RWAIT[1]) begin
-					IO_BG1_RAM_DO <= BG1_ROM_D;
-				end
-			end
-		end
-	end
-	assign BG1_RAM_A = IO_BG1_RAM_ADDR;
-	assign BG1_RAM_WD = IO_BG1_RAM_DATA;
-	assign BG1_RAM_WE_N = ~IO_BG1_RAM_WE;
-	assign BG1_RAM_RD_N = ~IO_BG1_RAM_RD;
+	assign WAIT_N = 1;
 	
 	//Video generator
 	bit          CLK_RES;
@@ -260,7 +153,7 @@ module SKNS_VIEW3
 					for (int i=0;i<2;i++) begin
 						BG_COL_SX[i] <= BG_COL_SX[i] + BG_COL_INCX[i];
 						BG_COL_SY[i] <= BG_COL_SY[i] + BG_COL_INCY[i];
-						if (VCNT == 9'h1FF) begin
+						if (VCNT == 9'h0) begin
 							BG_COL_SX[i] <= BG_START_X[i];
 							BG_COL_SY[i] <= BG_START_Y[i];
 						end
@@ -359,7 +252,7 @@ module SKNS_VIEW3
 			end
 		end
 	end
-	assign RENDER_BG1_CYCLE = BG_CHR_FETCH_C1[1];
+	assign BG1_RENDER = 0;//BG_CHR_FETCH_C1[1];
 	
 	//Cycle 2
 	bit  [23: 0] BG_CHR_ADDR_C2[2];
@@ -393,119 +286,10 @@ module SKNS_VIEW3
 	bit  [ 2: 0] BG_PRI_C3[2];
 	bit  [ 1: 0] BG_FINEX_C3[2];
 	bit          BG_FLIPX_C3[2];
-	bit  [ 1: 0] DOT_FST,DOT_SEC,DOT_THD;	
-	always @(posedge CLK or negedge RST_N) begin	
-		bit  [ 7: 0] BG_PIX[2];
-		bit  [ 5: 0] BG_PAL[2];
-		bit  [ 3: 0] BG_PRI[2];
-		bit          BG_VIS[2];	
-		bit  [ 3: 0] SPR_PRI;	
-		bit          SPR_VIS;
-		bit  [ 3: 0] FST_PRI,SEC_PRI,THD_PRI;
-		bit  [ 1: 0] FST,SEC,THD;
-		
-		if (!RST_N) begin
-			BG_OUT_PIX <= '{2{'0}};
-			BG_OUT_PAL <= '{2{'0}};
-			{DOT_FST,DOT_SEC,DOT_THD} <= '0;
-		end else if (EN) begin		
-			for (int i=0;i<2;i++) begin
-				BG_PIX[i] = BGPix(BG_CHR_C3[i],BG_FINEX_C3[i],BG_FLIPX_C3[i],BG_BPP[i]);
-				BG_PAL[i] = BG_PAL_C3[i];
-				BG_PRI[i] = {BG_PRI_C3[i],BG_PRIL[i]};
-				BG_VIS[i] = |BG_PIX[i] && BG_EN[i] && SCRN_EN[i];
-			end
-			SPR_PRI = {SPC_DATA[15:14],2'b11};
-			SPR_VIS = |SPC_DATA[7:0] && SCRN_EN[2];
-			
-			if (DOT_CE) begin
-				for (int i=0;i<2;i++) begin
-					BG_OUT_PIX[i] <= BG_PIX[i];
-					BG_OUT_PAL[i] <= BG_PAL[i];
-				end
-				SPR_OUT_PIX <= SPC_DATA[7:0];
-				SPR_OUT_PAL <= SPC_DATA[13:8];
-				
-				{FST,SEC,THD} = {2'h3,2'h3,2'h3};
-				{FST_PRI,SEC_PRI,THD_PRI} = {4'h0,4'h0,4'h0};
-				     if (SPR_PRI >= FST_PRI && SPR_VIS) begin
-					THD = SEC;  THD_PRI = SEC_PRI;
-					SEC = FST;  SEC_PRI = FST_PRI;
-					FST = 2'd2; FST_PRI = SPR_PRI;
-				end 
-				
-				     if (BG_PRI[0] >= FST_PRI && BG_VIS[0]) begin
-					THD = SEC;  THD_PRI = SEC_PRI;
-					SEC = FST;  SEC_PRI = FST_PRI;
-					FST = 2'd0; FST_PRI = BG_PRI[0];
-				end 
-				else if (BG_PRI[0] >= SEC_PRI && BG_VIS[0]) begin
-					THD = SEC;  THD_PRI = SEC_PRI;
-					SEC = 2'd0; SEC_PRI = BG_PRI[0];
-				end 
-				
-				     if (BG_PRI[1] >= FST_PRI && BG_VIS[1]) begin
-					THD = SEC;  THD_PRI = SEC_PRI;
-					SEC = FST;  SEC_PRI = FST_PRI;
-					FST = 2'd1; FST_PRI = BG_PRI[1];
-				end 
-				else if (BG_PRI[1] >= SEC_PRI && BG_VIS[1]) begin
-					THD = SEC;  THD_PRI = SEC_PRI;
-					SEC = 2'd1; SEC_PRI = BG_PRI[1];
-				end 
-				else if (BG_PRI[1] >= THD_PRI && BG_VIS[1]) begin
-					THD = 2'd1; THD_PRI = BG_PRI[1];
-				end
-				
-				DOT_FST <= FST;
-				DOT_SEC <= SEC;
-				DOT_THD <= THD;
-			end
-		end
+	always_comb begin	
+		BG0_PIX <= BG_EN[0] ? {{BG_PRI_C3[0],BG_PRIL[0]}, BG_PAL_C3[0], BGPix(BG_CHR_C3[0],BG_FINEX_C3[0],BG_FLIPX_C3[0],BG_BPP[0])} : '0;
+		BG1_PIX <= BG_EN[1] ? {{BG_PRI_C3[1],BG_PRIL[1]}, BG_PAL_C3[1], BGPix(BG_CHR_C3[1],BG_FINEX_C3[1],BG_FLIPX_C3[1],BG_BPP[1])} : '0;
 	end
-	
-	//Cycle 4
-	bit  [ 7: 0] BG_OUT_PIX[2];
-	bit  [ 5: 0] BG_OUT_PAL[2];
-	bit  [ 7: 0] SPR_OUT_PIX;
-	bit  [ 5: 0] SPR_OUT_PAL;
-	bit  [14: 0] BG_COLOR;
-	always_comb begin
-		case (DOTCLK_DIV)
-			2'h0: BG_COLOR <= DOT_THD <= 2'h1 ? {1'b1,BG_OUT_PAL[DOT_THD[0]],BG_OUT_PIX[DOT_THD[0]]} : DOT_THD == 2'h2 ? {1'b0,SPR_OUT_PAL,SPR_OUT_PIX} : '0;
-			2'h1: BG_COLOR <= DOT_SEC <= 2'h1 ? {1'b1,BG_OUT_PAL[DOT_SEC[0]],BG_OUT_PIX[DOT_SEC[0]]} : DOT_SEC == 2'h2 ? {1'b0,SPR_OUT_PAL,SPR_OUT_PIX} : '0;
-			2'h2,
-			2'h3: BG_COLOR <= DOT_FST <= 2'h1 ? {1'b1,BG_OUT_PAL[DOT_FST[0]],BG_OUT_PIX[DOT_FST[0]]} : DOT_FST == 2'h2 ? {1'b0,SPR_OUT_PAL,SPR_OUT_PIX} : '0;
-		endcase
-	end
-	
-	bit  [23: 0] OUT_RGB;
-	always @(posedge CLK or negedge RST_N) begin
-		bit  [23: 0] TOP_RGB, BOT_RGB, TEMP_RGB;
-		bit  [ 1: 0] TOP, BOT;
-		bit          BLEND;
-	
-		if (!RST_N) begin
-			BOT_RGB <= '0;
-			OUT_RGB <= '0;
-		end else if (EN) begin
-			if (BG_COLOR[14]) begin
-				TEMP_RGB = RGBBright(PAL_Q[15:0], {PREG[6][7:0],PREG[5][7:0],PREG[7][7:0]}, PREG[4][0]);
-			end else begin
-				TEMP_RGB = RGBBright(PAL_Q[15:0], {PREG[2][7:0],PREG[1][7:0],PREG[3][7:0]}, PREG[0][0]);
-			end
-			
-			if (CE_R) begin
-				case (DOTCLK_DIV)
-					2'h1: begin BOT_RGB <= TEMP_RGB; BOT <= DOT_SEC; end
-					2'h2: begin TOP_RGB <= TEMP_RGB; TOP <= DOT_FST; BLEND <= PAL_Q[15]; end
-					2'h3: OUT_RGB <= RGBBlend(TOP_RGB, BOT_RGB, {PREG[2][15:8],PREG[1][15:8],PREG[3][15:8]}, BLEND && TOP == 2'h2);
-				endcase
-			end
-		end
-	end
-	assign {R,G,B} = OUT_RGB;
-	
 	
 `ifdef DEBUG
 	assign DBG_BG0_ROW_SX = BG_ROW_SX[0].INT;

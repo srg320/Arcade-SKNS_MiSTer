@@ -6,7 +6,7 @@ module SKNS
 	
 	input              SYS_CE_F,
 	input              SYS_CE_R,
-	input              YMZ_CE,
+	input              X33M_CE,
 	input              X32K_CE,
 	
 	input              RES_N,
@@ -26,7 +26,7 @@ module SKNS
 	
 	input              MEM_WAIT_N,
 	
-	output     [23: 0] SPR_ROM_A,
+	output     [23: 1] SPR_ROM_A,
 	input      [15: 0] SPR_ROM_D,
 	output             SPR_ROM_RD_N,
 	input              SPR_ROM_WAIT,
@@ -45,7 +45,7 @@ module SKNS
 	output             BGA_ROM_RD_N,
 	
 	output     [17: 1] BGB_RAM_A,
-	output     [15: 0] BGB_RAM_WD,
+	output     [15: 0] BGB_RAM_DO,
 	output     [ 1: 0] BGB_RAM_WE_N,
 	output             BGB_RAM_RD_N,
 	
@@ -121,14 +121,18 @@ module SKNS
 	bit  [ 8: 0] BABY_HCNT;
 	bit  [ 8: 0] BABY_VCNT;
 	
-	bit  [31: 0] VIEW3_DO,SPC_DO;
-	bit          VIEW3_WAIT_N,SPC_WAIT_N;
+	bit  [31: 0] VIEW3_DO;
+	bit  [15: 0] ALTAIR_DO;
+	bit          VIEW3_WAIT_N,ALTAIR_WAIT_N;
 	bit          VIEW3_HINT,VIEW3_VINT;
 	bit          HSPC_N;
-	bit  [15: 0] SPC_DATA;
+	bit          BG1_RENDER;
+	bit  [17: 0] BG0_PIX,BG1_PIX;
+	
+	bit  [31: 0] SPC_DO;
+	bit          SPC_WAIT_N;
+	bit  [15: 0] SPR_PIX;
 	bit          SPC_INT;
-
-	bit  [ 3: 0] RTC_DO;
 	
 	bit  [ 7: 0] YMZ_DO;
 	bit          YMZ_CS_N;
@@ -136,9 +140,15 @@ module SKNS
 	bit          YMZ_IRQ_N;
 	bit  [20: 0] YMZ_MA;
 	bit  [ 9: 0] YMZ_MCS_N;
+
+	bit  [ 3: 0] RTC_DO;
 	
 	bit  [ 7: 0] VEGA_DO;
+	
 	bit  [15: 0] HIT_DO;
+	
+	bit  [15: 0] CART_DO;
+	bit          CART_WAIT_N;
 	
 	wire         BIOS_SEL  = (!CPU_CS0_N && CPU_A[24:22] == 3'b000);
 	wire         IO_SEL    = (!CPU_CS0_N && CPU_A[24:22] == 3'b001);
@@ -148,8 +158,10 @@ module SKNS
 	wire         LOCK_SEL  = (!CPU_CS0_N && CPU_A[24:22] == 3'b110);
 	wire         HIT_SEL   = (!CPU_CS1_N && CPU_A[24:20] == 5'b01111);
 	wire         SPR_SEL   = (!CPU_CS1_N && CPU_A[24:22] == 3'b000);
-	wire         VID_SEL   = (!CPU_CS1_N && CPU_A[24:22] != 3'b000) || (!CPU_CS2_N && CPU_A[24:23] == 2'b01);
+	wire         VIEW3_SEL = (!CPU_CS1_N && CPU_A[24:22] == 3'b001);
+	wire         ALTAIR_SEL= (!CPU_CS1_N && CPU_A[24:20] == 5'b01010);
 	wire         GROM_SEL  = (!CPU_CS2_N && CPU_A[24:23] == 2'b00);
+	wire         BGRAM_SEL = (!CPU_CS2_N && CPU_A[24:23] == 2'b01);
 	
 	
 	SH7604 #(.UBC_DISABLE(1), .SCI_DISABLE(1), .BUS_AREA_TIMIMG({1'b1,3'b111})) CPU
@@ -198,7 +210,7 @@ module SKNS
 		.EOE_N(1'b1),
 		.EIVECF_N(1'b1),
 		
-		.WAIT_N(VIEW3_WAIT_N & SPC_WAIT_N & MEM_WAIT_N),
+		.WAIT_N(VIEW3_WAIT_N & ALTAIR_WAIT_N & SPC_WAIT_N & CART_WAIT_N & MEM_WAIT_N),
 		.IVECF_N(),
 		.BRLS_N(1'b1),
 		.BGR_N(),
@@ -233,8 +245,10 @@ module SKNS
 						 RTC_SEL ? {28'h0000000,RTC_DO} :
 						 HIT_SEL    ? (LOCK ? 32'h00000000 : {16'h0000,HIT_DO}) :
 						 SPR_SEL ? SPC_DO :
-						 VID_SEL ? VIEW3_DO :
-						 !GROM_CE_N ? {16'h0000,ROM_D} : 
+						 VIEW3_SEL ? VIEW3_DO :
+						 ALTAIR_SEL ? {16'h0000,ALTAIR_DO} :
+						 GROM_SEL ? {16'h0000,ROM_D} : 
+						 BGRAM_SEL ? {16'h0000,CART_DO} : 
 	                !CPU_CS3_N ? DRAM_DI : 
 						 32'h00000000;
 	
@@ -282,6 +296,7 @@ module SKNS
 		.VBL_N(VBL_N)
 	);
 	
+	wire [ 1: 0] VIEW3_CE = CPU_A[21:20] | {2{~VIEW3_SEL}};
 	SKNS_VIEW3 VIEW3
 	(
 		.CLK(CLK),
@@ -293,18 +308,18 @@ module SKNS
 		
 		.RES_N(RES_N),
 		
-		.A(CPU_A[24:0]),
+		.A(CPU_A[14:2]),
 		.DI(CPU_DO),
 		.DO(VIEW3_DO),
 		.RD_N(CPU_RD_N),
-		.WE_N(CPU_WE_N),
-		.CS1_N(CPU_CS1_N),
-		.CS2_N(CPU_CS2_N),
+		.WE_N({4{CPU_WE_N[0]}}),
+		.CE(VIEW3_CE),
 		.WAIT_N(VIEW3_WAIT_N),
 		
 		.DOT_CE(DOT_CE),
 		.HCNT(BABY_HCNT),
 		.VCNT(BABY_VCNT),
+		.BG1_RENDER(BG1_RENDER),
 		
 		.BG0_ROM_A(BGA_ROM_A),
 		.BG0_ROM_D(BGA_ROM_D),
@@ -314,16 +329,8 @@ module SKNS
 		.BG1_ROM_D(BGB_ROM_D),
 		.BG1_ROM_RD_N(BGB_ROM_RD_N),
 		
-		.BG1_RAM_A(BGB_RAM_A),
-		.BG1_RAM_WD(BGB_RAM_WD),
-		.BG1_RAM_WE_N(BGB_RAM_WE_N),
-		.BG1_RAM_RD_N(BGB_RAM_RD_N),
-		
-		.SPC_DATA(SPC_DATA),
-		
-		.R(R),
-		.G(G),
-		.B(B),
+		.BG0_PIX(BG0_PIX),
+		.BG1_PIX(BG1_PIX),
 		
 		.SCRN_EN(SCRN_EN[2:0])
 	);
@@ -334,8 +341,7 @@ module SKNS
 		.RST_N(RST_N),
 		.EN(EN),
 		
-		.CE_F(SYS_CE_F),
-		.CE_R(SYS_CE_R),
+		.CE(X33M_CE),
 		
 		.RES_N(RES_N),
 		
@@ -366,7 +372,7 @@ module SKNS
 		.DOT_CE(DOT_CE),
 		.HBL_N(HSPC_N),
 		.VBL_N(VBL_N),
-		.OUT(SPC_DATA),
+		.OUT(SPR_PIX),
 		
 		.SPR_OFFSX(SPR_OFFSX),
 		.SPR_OFFSY(SPR_OFFSY)
@@ -377,6 +383,56 @@ module SKNS
 `endif
 	);
 	
+	bit  [14: 0] PAL_RAM_A;
+	bit  [15: 0] PAL_RAM_D,PAL_RAM_Q;
+	bit          PAL_RAM_OE_N,PAL_RAM_WE_N,PAL_RAM_CE_N;
+	SKNS_ALTAIR ALTAIR
+	(
+		.CLK(CLK),
+		.RST_N(RST_N),
+		.EN(EN),
+		
+		.CE_F(SYS_CE_F),
+		.CE_R(SYS_CE_R),
+		
+		.RES_N(RES_N),
+		
+		.A(CPU_A[18:2]),
+		.DI(CPU_DO[15:0]),
+		.DO(ALTAIR_DO),
+		.RD_N(CPU_RD_N),
+		.WE_N(CPU_WE_N[1:0]),
+		.CE_N(~ALTAIR_SEL),
+		.WAIT_N(ALTAIR_WAIT_N),
+		
+		.DOT_CE(DOT_CE),
+		
+		.PAL_RAM_A(PAL_RAM_A),
+		.PAL_RAM_D(PAL_RAM_D),
+		.PAL_RAM_OE_N(PAL_RAM_OE_N),
+		.PAL_RAM_WE_N(PAL_RAM_WE_N),
+		.PAL_RAM_CE_N(PAL_RAM_CE_N),
+		.PAL_RAM_Q(PAL_RAM_Q),
+		
+		.SPR_PIX(SPR_PIX),
+		.BG0_PIX(BG0_PIX),
+		.BG1_PIX(BG1_PIX),
+		
+		.R(R),
+		.G(G),
+		.B(B),
+		
+		.SCRN_EN(SCRN_EN[2:0])
+	);
+	
+	SKNS_PAL_RAM PAL_RAM(CLK, PAL_RAM_A, PAL_RAM_D, {2{~PAL_RAM_CE_N & ~PAL_RAM_WE_N}}, PAL_RAM_A, PAL_RAM_Q);
+	
+	//Sound
+	bit X33M_DIV;
+	always @(posedge CLK) 
+		X33M_DIV <= ~X33M_DIV;
+		
+	wire YMZ_CE = X33M_DIV & X33M_CE;
 	assign YMZ_CS_N = ~YMZ_SEL;
 	YMZ280B YMZ280B
 	(
@@ -525,6 +581,36 @@ module SKNS
 			end
 		end
 	end
+	
+	//Cartidge
+	SKNS_CART CART
+	(
+		.CLK(CLK),
+		.RST_N(RST_N),
+		.EN(EN),
+		
+		.CE_F(SYS_CE_F),
+		.CE_R(SYS_CE_R),
+		
+		.RES_N(RES_N),
+		
+		.A(CPU_A[24:1]),
+		.DI(CPU_DO[15:0]),
+		.DO(CART_DO),
+		.RD_N(CPU_RD_N),
+		.WE_N(CPU_WE_N[1:0]),
+		.CS_N(CPU_CS2_N),
+		.WAIT_N(CART_WAIT_N),
+		
+		.DOT_CE(DOT_CE),
+		.RENDER(BG1_RENDER),
+		
+		.BG1_RAM_A(BGB_RAM_A),
+		.BG1_RAM_DI(BGB_ROM_D),
+		.BG1_RAM_DO(BGB_RAM_DO),
+		.BG1_RAM_WE_N(BGB_RAM_WE_N),
+		.BG1_RAM_RD_N(BGB_RAM_RD_N)
+	);
 	
 `ifdef DEBUG
 	always @(posedge CLK or negedge RST_N) begin

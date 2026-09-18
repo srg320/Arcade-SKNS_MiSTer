@@ -287,6 +287,98 @@ module SKNS_PAL_RAM
 	
 endmodule
 
+module SKNS_BGCHR_RAM
+(
+	input          CLK,
+	input  [17: 1] ADDR_A,
+	input  [15: 0] DATA_A,
+	input  [ 1: 0] WREN_A,
+	output [15: 0] Q_A,
+	
+	input  [17: 1] ADDR_B,
+	output [15: 0] Q_B
+);
+
+`ifdef SIM
+	
+	reg [15:0] MEM [2**17];
+	initial begin
+		MEM <= '{2**17{'0}};
+	end
+	always @(posedge CLK) begin
+		if (WREN_A[1]) MEM[ADDR_A][15:8] <= DATA[15:8];
+		if (WREN_A[0]) MEM[ADDR_A][7:0] <= DATA[7:0];
+		Q_A <= MEM[ADDR_A];
+		
+		Q_B <= {MEM[{ADDR_B,1'b0}],MEM[{ADDR_B,1'b1}]};
+	end
+	
+`else
+
+	wire [15:0] sub_wire0;
+	wire [15:0] sub_wire1;
+
+	altsyncram	altsyncram_component (
+				.clock0 (CLK),
+				.wren_a (|WREN_A),
+				.address_b (ADDR_B),
+				.data_b (16'h0),
+				.wren_b (1'b0),
+				.address_a (ADDR_A),
+				.data_a (DATA_A),
+				.q_a (sub_wire0),
+				.q_b (sub_wire1),
+				.aclr0 (1'b0),
+				.aclr1 (1'b0),
+				.addressstall_a (1'b0),
+				.addressstall_b (1'b0),
+				.byteena_a (WREN_A),
+				.byteena_b (2'h0),
+				.clock1 (1'b1),
+				.clocken0 (1'b1),
+				.clocken1 (1'b1),
+				.clocken2 (1'b1),
+				.clocken3 (1'b1),
+				.eccstatus (),
+				.rden_a (1'b1),
+				.rden_b (1'b1));
+	defparam
+		altsyncram_component.address_reg_b = "CLOCK0",
+		altsyncram_component.byteena_reg_b = "CLOCK0",
+		altsyncram_component.byte_size = 8,
+		altsyncram_component.clock_enable_input_a = "BYPASS",
+		altsyncram_component.clock_enable_input_b = "BYPASS",
+		altsyncram_component.clock_enable_output_a = "BYPASS",
+		altsyncram_component.clock_enable_output_b = "BYPASS",
+		altsyncram_component.indata_reg_b = "CLOCK0",
+		altsyncram_component.intended_device_family = "Cyclone V",
+		altsyncram_component.lpm_type = "altsyncram",
+		altsyncram_component.numwords_a = 2**17,
+		altsyncram_component.numwords_b = 2**17,
+		altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
+		altsyncram_component.outdata_aclr_a = "NONE",
+		altsyncram_component.outdata_aclr_b = "NONE",
+		altsyncram_component.outdata_reg_a = "UNREGISTERED",
+		altsyncram_component.outdata_reg_b = "UNREGISTERED",
+		altsyncram_component.power_up_uninitialized = "FALSE",
+		altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",
+		altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
+		altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ",
+		altsyncram_component.widthad_a = 17,
+		altsyncram_component.widthad_b = 17,
+		altsyncram_component.width_a = 16,
+		altsyncram_component.width_b = 16,
+		altsyncram_component.width_byteena_a = 2,
+		altsyncram_component.width_byteena_b = 2,
+		altsyncram_component.wrcontrol_wraddress_reg_b = "CLOCK0";
+		
+	assign Q_A = sub_wire0;
+	assign Q_B = sub_wire1;
+	
+`endif
+	
+endmodule
+
 module SKNS_SPRITE_BUF
 (
 	input          CLK,
@@ -356,7 +448,11 @@ module SKNS_SPRITE_BUF
 	
 endmodule
 
-module SKNS_SPRITE_FIFO (
+module SKNS_SPRITE_FIFO
+#(
+	parameter aw = 1
+)
+(
 	input	         CLK,
 	input          EN,
 	input          RST,
@@ -371,9 +467,9 @@ module SKNS_SPRITE_FIFO (
 );
 
 	wire [ 7: 0] sub_wire0;
-	bit  [ 7: 0] RADDR;
-	bit  [ 7: 0] WADDR;
-	bit  [ 8: 0] AMOUNT;
+	bit  [aw-1: 0] RADDR;
+	bit  [aw-1: 0] WADDR;
+	bit  [aw: 0] AMOUNT;
 	
 	always @(posedge CLK) begin
 		if (RST) begin
@@ -382,22 +478,22 @@ module SKNS_SPRITE_FIFO (
 			WADDR <= '0;
 		end
 		else if (EN) begin
-			if (WRREQ && !AMOUNT[8]) begin
-				WADDR <= WADDR + 8'd1;
+			if (WRREQ && !AMOUNT[aw]) begin
+				WADDR <= WADDR + 1'd1;
 			end
 			if (RDREQ && AMOUNT) begin
-				RADDR <= RADDR + 8'd1;
+				RADDR <= RADDR + 1'd1;
 			end
 			
-			if (WRREQ && !RDREQ && !AMOUNT[8]) begin
-				AMOUNT <= AMOUNT + 9'd1;
+			if (WRREQ && !RDREQ && !AMOUNT[aw]) begin
+				AMOUNT <= AMOUNT + 1'd1;
 			end else if (!WRREQ && RDREQ && AMOUNT) begin
-				AMOUNT <= AMOUNT - 9'd1;
+				AMOUNT <= AMOUNT - 1'd1;
 			end
 		end
 	end
 	assign EMPTY = ~|AMOUNT;
-	assign FULL = AMOUNT[8];
+	assign FULL = AMOUNT[aw];
 
 `ifdef SIM
 
@@ -446,7 +542,7 @@ module SKNS_SPRITE_FIFO (
 		altdpram_component.rdcontrol_reg = "UNREGISTERED",
 		altdpram_component.read_during_write_mode_mixed_ports = "CONSTRAINED_DONT_CARE",
 		altdpram_component.width = 8,
-		altdpram_component.widthad = 8,
+		altdpram_component.widthad = aw,
 		altdpram_component.width_byteena = 1,
 		altdpram_component.wraddress_aclr = "OFF",
 		altdpram_component.wraddress_reg = "INCLOCK",
@@ -458,4 +554,3 @@ module SKNS_SPRITE_FIFO (
 `endif
 
 endmodule
-
