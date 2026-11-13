@@ -498,9 +498,19 @@ module SKNS_SPC2
 	
 	assign INT = SPR_INT;
 	
+	// Global sprite flip (RWR1 bits 1:0, used by e.g. Cyvern and the
+	// BIOS "screen flip" setting). Like MAME, the finished sprite picture is
+	// mirrored around the visible area: unflipped, the display reads frame
+	// buffer dots DISP+1 .. DISP+N, so flipped it must read DISP+N .. DISP+1.
+	// N must match the active window of HBL_N (HSPC_N) / VBL_N from SKNS_BABY.
+	localparam bit [8:0] DISP_W = 9'd320;
+	localparam bit [8:0] DISP_H = 9'd240;
+	wire       [8:0] DISP_X_START = SPR_DISP_X[14:6] + (SPR_DISP_FLIPX ? DISP_W : 9'd1);
+	wire       [8:0] DISP_Y_START = SPR_DISP_Y[14:6] + (SPR_DISP_FLIPY ? DISP_H : 9'd1);
+
 	always @(posedge CLK or negedge RST_N) begin
 		bit         HBL_N_OLD,VBL_N_OLD;
-		
+
 		if (!RST_N) begin
 			DISP_FB_X <= '0;
 			DISP_FB_Y <= '0;
@@ -513,11 +523,11 @@ module SKNS_SPC2
 					DISP_FB_X <= DISP_FB_X + {{8{SPR_DISP_FLIPX}},1'b1};
 				end
 				if (!HBL_N && HBL_N_OLD) begin
-					DISP_FB_X <= SPR_DISP_X[14:6] + {{8{SPR_DISP_FLIPX}},1'b1};
+					DISP_FB_X <= DISP_X_START;
 					if (VBL_N) DISP_FB_Y <= DISP_FB_Y + {{8{SPR_DISP_FLIPY}},1'b1};
 				end
 				if (!VBL_N && VBL_N_OLD) begin
-					DISP_FB_Y <= SPR_DISP_Y[14:6] + {{8{SPR_DISP_FLIPY}},1'b1};
+					DISP_FB_Y <= DISP_Y_START;
 					FB_SEL <= ~FB_SEL;
 				end
 			end
